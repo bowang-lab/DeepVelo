@@ -1,0 +1,25 @@
+{
+    "workdir": "[ENTER WORKING DIRECTORY]",
+    "scriptdir": "[ENTER SCRIPT DIRECTORY]",
+    "samples": ["E10", "E12", "E14", "E16", "E18", "P0", "P5", "P7", "P14"],
+    "runs": [
+        "SingleCell_h9_S1",
+        "SingleCell_h8_S2",
+        "SingleCell_h7_S1",
+        "SingleCell_h6_S2",
+        "SingleCell_h12_S1",
+        "SingleCell_f4_S2",
+        "SingleCell_d11_S1",
+        "SingleCell_f7_S2",
+        "SingleCell_g9_S2"
+    ],
+    "kallisto_idx_kmers": 31,
+    "subset_celltypes": [
+        "Differentiating GABA interneurons", 
+        "GABA interneurons", 
+        "Gliogenic progenitors",
+        "Neural stem cells", 
+        "Proliferating VZ progenitors", 
+        "VZ progenitors"
+    ]
+}

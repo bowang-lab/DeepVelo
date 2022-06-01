@@ -1,0 +1,157 @@
+import os
+
+configfile: "config.json"
+scriptdir = os.path.join(os.getcwd(), "scripts")
+workdir: config["workdir"]
+
+# mm10 genome and associated files downloaded using the 
+# 'mouse_download.sh' script from
+# https://github.com/linnarsson-lab/loompy/tree/master/kallisto
+
+# All directive - run all jobs beginning to end
+rule all:
+    input:
+        "loom_subset/loom_concat_subset.h5ad"
+
+# Process metadata file for loompy workflow
+rule metadata_file:
+    params:
+        script_path = os.path.join(scriptdir, "metadata.py")
+    output:
+        "hindbrain_metadata.tab"
+    log:
+        "logs/metadata_file/hindbrain_metadata.log"
+    threads: 16
+    shell:
+        "python {params.script_path} {output} &> {log}"
+
+# Index fragments file using kallisto
+rule kallisto_idx:
+    input:
+        os.path.join(
+            config["workdir"],
+            "kallisto/inputs/gencode.vM23.fragments.fa"
+        )
+    params:
+        workdir = config["workdir"],
+        build_script = os.path.join(
+            scriptdir, 
+            "mouse_build.py"
+        ),
+        fragments_script = os.path.join(
+            scriptdir, 
+            "mouse_generate_fragments.py"
+        ),
+        kmers = config["kallisto_idx_kmers"]
+    output:
+        os.path.join(
+            config["workdir"],
+            "kallisto/gencode.vM23.fragments.idx"
+        )
+    threads: 16
+    log:
+        "logs/kallisto_idx/kallisto_idx.log"
+    shell:
+        """
+        cd {params.workdir}/kallisto
+        python -v {params.build_script}
+        python -v {params.fragments_script}
+        kallisto index -i {output} -k {params.kmers} {input}
+        """
+
+# Create individual loompy files from fastqs for each timepoint
+rule fastq_to_loom:
+    input:
+        metadata = "{metaname}_metadata.tab",
+        index_file = os.path.join(
+            config["workdir"],
+            "kallisto/gencode.{gencode_ver}.fragments.idx"
+        ),
+        read_l1_r1 = "fastq/{sample}/{run}_L001_R1_001.fastq.gz",
+        read_l1_r2 = "fastq/{sample}/{run}_L001_R2_001.fastq.gz",
+        read_l2_r1 = "fastq/{sample}/{run}_L002_R1_001.fastq.gz",
+        read_l2_r2 = "fastq/{sample}/{run}_L002_R2_001.fastq.gz"
+    params:
+        index_path = os.path.join(
+            config["workdir"],
+            "kallisto"
+        )
+    threads: 16
+    output:
+        "loom/{sample}/{run}_{metaname}_{gencode_ver}.loom"
+    log:
+        "logs/fastq_to_loom/{sample}/{run}_{metaname}_{gencode_ver}.log"
+    shell:
+        """
+        loompy fromfq {output} {wildcards.sample} {params.index_path} {input.metadata} \
+            {input.read_l1_r1} {input.read_l1_r2} {input.read_l2_r1} \
+            {input.read_l2_r2} \
+            &> {log}
+        """
+
+# Combine loompy files into one
+rule concat_looms:
+    input:
+        [
+            "loom/{sample}/{run}_hindbrain_vM23.loom".format(sample = i, run = j) 
+            for i,j in zip(config["samples"], config["runs"])
+        ]
+    output:
+        "loom_concat/{loomfile}.loom"
+    params:
+        script_path = os.path.join(scriptdir, "loompy_combine.py")
+    threads: 16
+    log:
+        "logs/concat_looms/{loomfile}_looms.log"
+    shell:
+        """
+        python {params.script_path} \
+            --outfile {output} \
+            --loomfiles {input} \
+            &> {log}
+        """
+
+# Match metadata in loomfile with metadata file 
+rule loom_metadata:
+    input:
+        "loom_concat/{loomfile}.loom"
+    output:
+        "loom_metadata/{loomfile}_loom_metadata.tsv",
+    params:
+        script_path = os.path.join(scriptdir, "loom_metadata.py"),
+        barcode_meta_file = "cluster_annotations/barcode_cluster.csv",
+        cluster_meta_file = "cluster_annotations/cluster_annotations.csv"
+    threads: 16
+    log: 
+        "logs/loom_metadata/{loomfile}_loom_metadata.log"
+    shell:
+        """
+        python {params.script_path} \
+            --outfile {output} \
+            --loomfile {input} \
+            --barcodefile {params.barcode_meta_file} \
+            --clusterfile {params.cluster_meta_file} \
+            &> {log}
+        """
+        
+# Subset loomfile and convert to anndata
+# for only data (celltypes) that is utilized in the analysis
+rule loom_subset_to_adata:
+    input:
+        full_loomfile = "loom_concat/{loomfile}.loom",
+        loom_metadata = "loom_metadata/{loomfile}_loom_metadata.tsv"
+    output:
+        "loom_subset/{loomfile}_subset.h5ad"
+    params:
+        script_path = os.path.join(scriptdir, "loom_subset.py")
+    threads: 16
+    log: 
+        "logs/loom_subset/{loomfile}_subset.log"
+    shell:
+        """
+        python {params.script_path} \
+            --outfile {output} \
+            --loomfile {input.full_loomfile} \
+            --metadata {input.loom_metadata} \
+            &> {log}
+        """
