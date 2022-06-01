@@ -3,6 +3,8 @@ from typing import Optional, Tuple
 import numpy as np
 import scvelo as scv
 from scvelo import logging as logg
+from scvelo.core import sum as sum_
+from anndata import AnnData
 
 from deepvelo.utils.plot import dist_plot
 
@@ -116,3 +118,55 @@ def clip_and_norm_Ms_Mu(
         logg.hint(f"replaced 'Mu' (adata.layers) with 'NMu'")
 
     return scale_Ms, scale_Mu
+
+
+def autoset_coeff_s(adata: AnnData, use_raw: bool = True) -> float:
+    """
+    Automatically set the weighting for objective term of the spliced
+    read correlation. Modified from the scv.pl.proportions function.
+
+    Args:
+        adata (Anndata): Anndata object.
+        use_raw (bool): use raw data or processed data.
+
+    Returns:
+        float: weighting coefficient for objective term of the unpliced read
+    """
+    layers = ["spliced", "unspliced", "ambigious"]
+    layers_keys = [key for key in layers if key in adata.layers.keys()]
+    counts_layers = [sum_(adata.layers[key], axis=1) for key in layers_keys]
+
+    if use_raw:
+        ikey, obs = "initial_size_", adata.obs
+        counts_layers = [
+            obs[ikey + layer_key] if ikey + layer_key in obs.keys() else c
+            for layer_key, c in zip(layers_keys, counts_layers)
+        ]
+    counts_total = np.sum(counts_layers, 0)
+    counts_total += counts_total == 0
+    counts_layers = np.array([counts / counts_total for counts in counts_layers])
+    counts_layers = np.mean(counts_layers, axis=1)
+
+    spliced_counts = counts_layers[layers_keys.index("spliced")]
+    ratio = spliced_counts / counts_layers.sum()
+
+    if ratio < 0.7:
+        coeff_s = 0.5
+        print(
+            f"The ratio of spliced reads is {ratio*100:.1f}% (less than 70%). "
+            f"Suggest using coeff_s {coeff_s}."
+        )
+    elif ratio < 0.85:
+        coeff_s = 0.75
+        print(
+            f"The ratio of spliced reads is {ratio*100:.1f}% (between 70% and 85%). "
+            f"Suggest using coeff_s {coeff_s}."
+        )
+    else:
+        coeff_s = 1.0
+        print(
+            f"The ratio of spliced reads is {ratio*100:.1f}% (more than 85%). "
+            f"Suggest using coeff_s {coeff_s}."
+        )
+
+    return coeff_s

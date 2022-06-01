@@ -4,12 +4,20 @@ from pathlib import Path
 from functools import reduce, partial
 from operator import getitem
 from datetime import datetime
+from typing import Callable
 from deepvelo.logger import setup_logging
-from deepvelo.utils import read_json, write_json
+from deepvelo.utils import read_json, write_json, validate_config
 
 
 class ConfigParser:
-    def __init__(self, config, resume=None, modification=None, run_id=None):
+    def __init__(
+        self,
+        config,
+        resume=None,
+        modification=None,
+        run_id=None,
+        validator: Callable = validate_config,
+    ):
         """
         class to parse configuration json file. Handles hyperparameters for training, initializations of modules, checkpoint saving
         and logging module.
@@ -21,6 +29,9 @@ class ConfigParser:
         # load config file and apply modification
         self._config = _update_config(config, modification)
         self.resume = resume
+
+        if validator:
+            self._config = validator(self._config)
 
         # set save_dir where trained model and log will be saved.
         save_dir = Path(self.config["trainer"]["save_dir"])

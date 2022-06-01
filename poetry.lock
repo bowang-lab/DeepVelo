@@ -242,11 +242,25 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
-name = "dgl-cu101"
+name = "dgl"
 version = "0.4.3.post2"
 description = "Deep Graph Library"
 category = "main"
 optional = false
+python-versions = "*"
+
+[package.dependencies]
+networkx = ">=2.1"
+numpy = ">=1.14.0"
+requests = ">=2.19.0"
+scipy = ">=1.1.0"
+
+[[package]]
+name = "dgl-cu101"
+version = "0.4.3.post2"
+description = "Deep Graph Library"
+category = "main"
+optional = true
 python-versions = "*"
 
 [package.dependencies]
@@ -1615,10 +1629,13 @@ python-versions = ">=3.7"
 docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)"]
 testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
 
+[extras]
+gpu = ["dgl-cu101"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.1,<4.0"
-content-hash = "fd682a945dca495dd5872e081054e0a16e3f8312c1aeb6be56d57df28ee304d4"
+content-hash = "2ee583a28fb5e24289fe3b3f834292a15d53f9eb8f2f39708a106eddaf1cc286"
 
 [metadata.files]
 adjusttext = [
@@ -1778,6 +1795,20 @@ decorator = [
 defusedxml = [
     {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
     {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
+]
+dgl = [
+    {file = "dgl-0.4.3.post2-cp35-cp35m-macosx_10_6_x86_64.whl", hash = "sha256:2e51ece8d029540dd687dc4371a05f69df926f0ff5b40c0b1c739d6f049ffb4b"},
+    {file = "dgl-0.4.3.post2-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:0fdafab254382d2d65664140680e3f25304fd5ab3b043211059d51b52b04a26c"},
+    {file = "dgl-0.4.3.post2-cp35-cp35m-win_amd64.whl", hash = "sha256:6992718927265e4a137da2d7643d4eac2122b60105a1aceb6abc44d09c608806"},
+    {file = "dgl-0.4.3.post2-cp36-cp36m-macosx_10_13_x86_64.whl", hash = "sha256:31ccdc19d61bd1aa996819e9c722ecc2bd755fb062815a91a527034000adf7f5"},
+    {file = "dgl-0.4.3.post2-cp36-cp36m-manylinux1_x86_64.whl", hash = "sha256:040dd48afe1500d0ad574a631dee172fd1d6e53120110ed5a0d2a2b0afeb968d"},
+    {file = "dgl-0.4.3.post2-cp36-cp36m-win_amd64.whl", hash = "sha256:ee4cab8fb688c497f56ffb531cea3f49d35354a356e7457692721bb0a0ee995e"},
+    {file = "dgl-0.4.3.post2-cp37-cp37m-macosx_10_13_x86_64.whl", hash = "sha256:5a1cee5abaaac193c960675cf072c0890a354650c292aead6ec722ae41c2f7d9"},
+    {file = "dgl-0.4.3.post2-cp37-cp37m-manylinux1_x86_64.whl", hash = "sha256:afc85d9996480f405b4d89f84e7890f7ad52a2fe73ce51cf2e6b3d09ec6284df"},
+    {file = "dgl-0.4.3.post2-cp37-cp37m-win_amd64.whl", hash = "sha256:c4b97ba559d74d0e5c84e8b80dda8b2f2a58ccd4272722b0a776c32ec19b3075"},
+    {file = "dgl-0.4.3.post2-cp38-cp38-macosx_10_13_x86_64.whl", hash = "sha256:33bee0a0c2617c37c787f3907553080a22715c12d12b38d7a3dd1380d30befc5"},
+    {file = "dgl-0.4.3.post2-cp38-cp38-manylinux1_x86_64.whl", hash = "sha256:9703196955e495781b4eb30097a78a84a48218156809dd80368a34cebb91c13f"},
+    {file = "dgl-0.4.3.post2-cp38-cp38-win_amd64.whl", hash = "sha256:e7d319935c93be798910baa9d21eb860e4602f3bb6b9a8b9e97fa4a900bd9395"},
 ]
 dgl-cu101 = [
     {file = "dgl_cu101-0.4.3.post2-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:cd738a928bab36b578369dde34cc15f3267ee3ec7ef65ae376ce00d136623488"},

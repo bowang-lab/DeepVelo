@@ -47,12 +47,19 @@ def validate_config(config: Mapping) -> Mapping:
     """
     Return config if it is valid, otherwise raise an error.
     """
-    if config["trainer"]["guided_epochs"] > 0:
-        assert config["loss"]["type"] == "mle", "Using guided epochs requires MLE loss"
-        assert "t+1" not in config["data_loader"]["args"]["type"], (
-            "Using guided epochs requires prdecting neighbors at time t after "
-            "guided epochs"
-        )
+
+    # check if the gpu verion of dgl is installed
+    if config["n_gpu"] > 0:
+        import dgl
+
+        try:
+            dgl.graph([]).to("cuda")
+        except dgl.DGLError:
+            print(
+                "Config Warning: Set to use GPU, but GPU version of DGL is not "
+                "installed. Reset to use CPU instead."
+            )
+            config["n_gpu"] = 0
 
     return config
 

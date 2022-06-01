@@ -19,7 +19,6 @@ class VeloDataset(Dataset):
     def __init__(
         self,
         data_source,
-        basis,
         train=True,
         type="average",
         topC=30,
@@ -164,7 +163,6 @@ class VeloDataLoader(BaseDataLoader):
         self,
         data_source,
         batch_size,
-        basis="raw",
         shuffle=True,
         validation_split=0.0,
         num_workers=1,
@@ -175,7 +173,7 @@ class VeloDataLoader(BaseDataLoader):
     ):
         self.data_source = data_source
         self.dataset = VeloDataset(
-            data_source, basis, train=training, type=type, topC=topC, topG=topG
+            data_source, train=training, type=type, topC=topC, topG=topG
         )
         self.shuffle = shuffle
         self.is_large_batch = batch_size == len(self.dataset)

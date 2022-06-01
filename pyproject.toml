@@ -1,9 +1,12 @@
 [tool.poetry]
 name = "deepvelo"
-version = "1.0.0"
+version = "0.2.4"
 description = "Deep Velocity"
 authors = ["subercui <subercui@gmail.com>"]
+readme = "README.md"
 license = "MIT"
+homepage = "https://github.com/bowang-lab/DeepVelo"
+repository = "https://github.com/bowang-lab/DeepVelo"
 
 [tool.poetry.dependencies]
 python = ">=3.7.1,<4.0"
@@ -16,7 +19,8 @@ scanpy = "^1.8.2"
 numpy = "^1.21.1"
 tqdm = "^4.62.3"
 ipywidgets = "^7.6.5"
-dgl-cu101 = "^0.4"
+dgl = { version = ">=0.4,!=0.8.0.post1", markers="extra!='gpu'" }
+dgl-cu101 = { version = ">=0.4,!=0.8.0.post1", optional = true }
 igraph = "^0.9.10"
 hnswlib = "^0.6.2"
 
@@ -29,6 +33,9 @@ petsc = "^3.17.0"
 petsc4py = "^3.17.0"
 slepc = "^3.17.1"
 slepc4py = "^3.17.1"
+
+[tool.poetry.extras]
+gpu = ["dgl-cu101"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

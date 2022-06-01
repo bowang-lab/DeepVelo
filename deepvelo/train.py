@@ -22,22 +22,19 @@ class MetaConstants(type):
 class Constants(object, metaclass=MetaConstants):
     _default_configs = {
         "name": "DeepVelo_Base",
-        "n_gpu": 1,
+        "n_gpu": 1,  # whether to use GPU
         "arch": {
             "type": "VeloGCN",
             "args": {
-                "n_genes": 2001,
                 "layers": [64, 64],
                 "dropout": 0.2,
-                "fc_layer": False,  # whther add an output fully connected layer
+                "fc_layer": False,
                 "pred_unspliced": False,
             },
         },
         "data_loader": {
             "type": "VeloDataLoader",
             "args": {
-                "basis": "pca",
-                "batch_size": 128,
                 "shuffle": False,
                 "validation_split": 0.0,
                 "num_workers": 2,
@@ -46,7 +43,6 @@ class Constants(object, metaclass=MetaConstants):
                 "topG": 20,
             },
         },
-        "online_test": "velo_mat_E10-12.npz",
         "optimizer": {
             "type": "Adam",
             "args": {"lr": 0.001, "weight_decay": 0, "amsgrad": True},
@@ -64,12 +60,11 @@ class Constants(object, metaclass=MetaConstants):
         "metrics": ["mse"],
         "lr_scheduler": {"type": "StepLR", "args": {"step_size": 1, "gamma": 0.97}},
         "trainer": {
-            "epochs": 280,
+            "epochs": 100,
             "save_dir": "saved/",
             "save_period": 1000,
             "verbosity": 1,
             "monitor": "min mse",
-            "guided_epochs": 0,  # epochs showing t+1 neighbors, only work w/ mle
             "early_stop": 1000,
             "tensorboard": True,
         },
@@ -87,7 +82,6 @@ def train(
     batch_size, n_genes = adata.layers["Ms"].shape
     configs["arch"]["args"]["n_genes"] = n_genes
     configs["data_loader"]["args"]["batch_size"] = batch_size
-    print(configs)
     config = ConfigParser(configs)
     logger = config.get_logger("train")
 
@@ -100,7 +94,10 @@ def train(
         model = config.init_obj("arch", module_arch, g=data_loader.dataset.g)
     else:
         model = config.init_obj("arch", module_arch)
-    logger.info(model)
+    logger.info(f"Beginning training of {configs['name']} ...")
+    if verbose:
+        logger.info(configs)
+        logger.info(model)
 
     # get function handles of loss and metrics
     criterion = getattr(module_loss, configs["loss"]["type"])

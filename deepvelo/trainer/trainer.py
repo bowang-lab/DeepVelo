@@ -6,7 +6,7 @@ import dgl
 
 # from torchvision.utils import make_grid
 from deepvelo.base import BaseTrainer
-from deepvelo.utils import validate_config, inf_loop, MetricTracker
+from deepvelo.utils import inf_loop, MetricTracker
 from deepvelo.logger import TensorboardWriter
 
 
@@ -28,7 +28,6 @@ class Trainer(BaseTrainer):
         len_epoch=None,
     ):
         super().__init__(model, criterion, metric_ftns, optimizer, config)
-        self.config = validate_config(config)
         self.data_loader = data_loader
         if len_epoch is None:
             # epoch-based training
@@ -50,31 +49,21 @@ class Trainer(BaseTrainer):
         )
 
     def _compute_core(self, batch_data):
-        if isinstance(batch_data, dgl.nodeflow.NodeFlow):
-            nf = batch_data
-            nf.copy_from_parent()
-            nf.layers[0].data["Ux_sz"] = nf.layers[0].data["Ux_sz"].to(self.device)
-            nf.layers[0].data["Sx_sz"] = nf.layers[0].data["Sx_sz"].to(self.device)
-            nf.layers[-1].data["Ux_sz"] = nf.layers[-1].data["Ux_sz"].to(self.device)
-            nf.layers[-1].data["Sx_sz"] = nf.layers[-1].data["Sx_sz"].to(self.device)
-            target = nf.layers[-1].data["velo"].to(self.device)
-            output = self.model(nf)
-        else:
-            data_dict = batch_data
-            x_u, x_s, target = data_dict["Ux_sz"], data_dict["Sx_sz"], data_dict["velo"]
-            x_u, x_s, target = (
-                x_u.to(self.device),
-                x_s.to(self.device),
-                target.to(self.device),
-            )
+        data_dict = batch_data
+        x_u, x_s, target = data_dict["Ux_sz"], data_dict["Sx_sz"], data_dict["velo"]
+        x_u, x_s, target = (
+            x_u.to(self.device),
+            x_s.to(self.device),
+            target.to(self.device),
+        )
 
-            if self.config["arch"]["args"]["pred_unspliced"]:
-                target_u = data_dict["velo_u"]
-                target_u = target_u.to(self.device)
-                # concate target to (batch, 2*genes), be careful of the order
-                target = torch.cat([target, target_u], dim=1)
+        if self.config["arch"]["args"]["pred_unspliced"]:
+            target_u = data_dict["velo_u"]
+            target_u = target_u.to(self.device)
+            # concate target to (batch, 2*genes), be careful of the order
+            target = torch.cat([target, target_u], dim=1)
 
-            output = self.model(x_u, x_s)
+        output = self.model(x_u, x_s)
         return output, target
 
     def _smooth_constraint_step(self):
@@ -104,15 +93,6 @@ class Trainer(BaseTrainer):
         """
         self.model.train()
         self.train_metrics.reset()
-        if "mle" in self.config["loss"]["type"]:
-            if "t+1" not in self.config["data_loader"]["args"]["type"]:
-                if epoch <= self.config["trainer"]["guided_epochs"]:
-                    self.data_loader.dataset.neighbor_time = 1
-                    print(
-                        f"This is a guided_epoch, use neighbors at t{self.data_loader.dataset.neighbor_time}."
-                    )
-                else:
-                    self.data_loader.dataset.neighbor_time = 0
         if (not self.data_loader.shuffle) and self.data_loader.is_large_batch:
             loader = self.data_loader.dataset.large_batch(self.device)
         else:

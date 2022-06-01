@@ -11,11 +11,13 @@ DeepVelo employs cell-specific kinetic rates and provides more accurate RNA velo
 pip install deepvelo
 ```
 
-The `dgl` package is required, the cpu version is installed by default. Feel free to install the [dgl cuda](https://www.dgl.ai/pages/start.html) version for GPU acceleration.
+### Using GPU
+
+The `dgl` cpu version is installed by default. For GPU acceleration, please install the proper [dgl gpu](https://www.dgl.ai/pages/start.html) version compatible with your CUDA environment.
 
 ```bash
+pip uninstall dgl # [optional] remove the cpu version
 pip install dgl-cu101>=0.4.3 # an example for CUDA 10.1
-
 ```
 
 ### Install the development version
