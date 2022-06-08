@@ -4,7 +4,7 @@ This folder contains the code necessary to reproduce the analysis for the DeepVe
 
 ### Instructions:
 
-Most notebooks can run directly and download necessary data automatically. For the hindbrain data and others:
+Most notebooks can run directly and download necessary data automatically. For running python notebooks using the hindbrain data or running the R scripts:
 
 1. Please download the necessary files:
 
@@ -19,4 +19,4 @@ tar -xzvf deepvelo_data.tar.gz
 ```
 
 **For R scripts** - please change directories into the `r_analysis` subfolder and follow the instructions
-to download and install the conda environment for generating the R figures and analyses
+to download and install the conda environment for generating the R figures and analyses.

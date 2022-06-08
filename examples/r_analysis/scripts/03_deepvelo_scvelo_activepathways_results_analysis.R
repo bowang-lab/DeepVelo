@@ -408,6 +408,7 @@ scvelo_dvelo_glio_fishers
 scvelo_dvelo_gaba_table <- cbind(
   as.matrix(scvelo_gaba_table), as.matrix(dvelo_gaba_table)
 )
+colnames(scvelo_dvelo_gaba_table) <- c("scVelo", "DeepVelo")
 scvelo_dvelo_gaba_fishers <- fisher.test(scvelo_dvelo_gaba_table, y = NULL, 
                                          workspace = 200000, hybrid = FALSE,
                                          hybridPars = c(expect = 5, percent = 80, Emin = 1),
