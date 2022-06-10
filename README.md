@@ -16,8 +16,10 @@ pip install deepvelo
 The `dgl` cpu version is installed by default. For GPU acceleration, please install the proper [dgl gpu](https://www.dgl.ai/pages/start.html) version compatible with your CUDA environment.
 
 ```bash
-pip uninstall dgl # [optional] remove the cpu version
-pip install dgl-cu101>=0.4.3 # an example for CUDA 10.1
+pip uninstall dgl # remove the cpu version
+# replace cu101 with your desired CUDA version and run the following
+pip install "dgl-cu101>=0.4.3,!=0.8.0.post1"
+
 ```
 
 ### Install the development version
