@@ -126,11 +126,15 @@ class VeloGCN(BaseModel):
         else:
             self.layers.append(GraphConv(layers[-1], out_layer_dim))
 
+    def to(self, device):
+        """
+        Move the model and graph to the specified device.
+        """
+        super().to(device)
+        self.g = self.g.to(device)
+        return self
+
     def forward(self, x_u, x_s):
-        """
-        right now it is jus mlp, and the complexity of the middle part does not make sense;
-        Change it to the attention model and constrain the information flow
-        """
         batch, n_gene = x_u.shape
         # h should be (batch, features=2*n_gene)
         h = torch.cat([x_u, x_s], dim=1)  # features
