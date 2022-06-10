@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deepvelo"
-version = "0.2.4"
+version = "0.2.5-rc.1"
 description = "Deep Velocity"
 authors = ["subercui <subercui@gmail.com>"]
 readme = "README.md"

@@ -53,6 +53,7 @@ class Constants(object, metaclass=MetaConstants):
                 "pearson_scale": 18.0,
                 "coeff_u": 1.0,
                 "coeff_s": 1.0,
+                "inner_batch_size": None,  # if None, will autoset the size.
             },
         },
         "constraint_loss": False,

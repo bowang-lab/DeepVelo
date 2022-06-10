@@ -13,7 +13,7 @@ pip install deepvelo
 
 ### Using GPU
 
-The `dgl` cpu version is installed by default. For GPU acceleration, please install the proper [dgl gpu](https://www.dgl.ai/pages/start.html) version compatible with your CUDA environment.
+The `dgl` cpu version is installed by default. For GPU acceleration, please install a proper [dgl gpu](https://www.dgl.ai/pages/start.html) version compatible with your CUDA environment.
 
 ```bash
 pip uninstall dgl # remove the cpu version
@@ -54,3 +54,9 @@ scv.pp.moments(adata, n_neighbors=30, n_pcs=30)
 trainer = dv.train(adata, dv.Constants.default_configs)
 # this will train the model and predict the velocity vectore. The result is stored in adata.layers['velocity']. You can use trainer.model to access the model.
 ```
+
+### Fitting large number of cells
+
+If you can not fit a large dataset into (GPU) memory using the default configs, please try setting a small `inner_batch_size` in the configs, which can reduce the memory usage and maintain the same performance.
+
+Currently the training works on the whole graph of cells, we plan to release a flexible version using graph node sampling in the near future.

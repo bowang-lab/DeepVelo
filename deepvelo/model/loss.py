@@ -126,6 +126,7 @@ def integrate_mle(
     idx: torch.LongTensor,
     candidate_states: torch.Tensor,
     n_spliced: int = None,
+    inner_batch_size: int = None,
     *args,
     **kwargs,
 ) -> torch.Tensor:
@@ -142,21 +143,37 @@ def integrate_mle(
         The indices future nearest neighbors, (batch_size, num_neighbors).
     candidate_states (torch.Tensor):
         The states of potential future nearest neighbors, (all_cells, genes).
+    n_spliced (int):
+        The number of spliced genes.
+    inner_batch_size (int):
+        The batch size for the inner loop.
 
     Returns: (torch.Tensor)
     """
     batch_size, genes = current_state.shape
     if n_spliced is not None:
         genes = n_spliced
-    with torch.no_grad():
-        delta_tp1, delta_tm1 = _find_candidates(
-            output,
-            current_state,
-            idx,
-            candidate_states,
-            n_genes=genes,
-            inner_batch_size=int(5e8 / idx.shape[1] / current_state.shape[1]),
-        )  # (batch_size, genes)
+    if inner_batch_size is None:
+        inner_batch_size = int(max(5e8 / idx.shape[1] / current_state.shape[1], 1))
+    elif inner_batch_size > 0:
+        inner_batch_size = int(inner_batch_size)
+    else:
+        raise ValueError("inner_batch_size must be a positive integer.")
+    try:
+        with torch.no_grad():
+            delta_tp1, delta_tm1 = _find_candidates(
+                output,
+                current_state,
+                idx,
+                candidate_states,
+                n_genes=genes,
+                inner_batch_size=inner_batch_size,
+            )  # (batch_size, genes)
+    except RuntimeError as e:
+        raise RuntimeError(
+            f"The current inner batch size {inner_batch_size} is too large. "
+            "Try reducing the 'inner_batch_size' in congigs."
+        ) from e
     loss_tp1 = torch.mean(torch.pow(output - delta_tp1, 2))
     loss_tm1 = torch.mean(torch.pow(output + delta_tm1, 2))
     loss = (loss_tp1 + loss_tm1) / 2 * np.sqrt(genes)
@@ -324,6 +341,7 @@ def mle_plus_direction(
     pearson_scale: float = 10.0,
     coeff_u: float = 1.0,
     coeff_s: float = 1.0,
+    inner_batch_size: Optional[int] = None,
 ) -> torch.Tensor:
     """
     The combination of maximum likelihood estimation loss and direction loss.
@@ -347,6 +365,7 @@ def mle_plus_direction(
         idx,
         candidate_states,
         n_spliced=velocity.shape[1],
+        inner_batch_size=inner_batch_size,
     )
     loss_pearson = direction_loss(
         velocity,
