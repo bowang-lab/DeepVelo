@@ -3,14 +3,16 @@ from typing import Callable, Mapping
 import numpy as np
 
 import torch
-from deepvelo.trainer import Trainer
+from anndata import AnnData
 from scvelo import logging as logg
 
+from deepvelo.trainer import Trainer
 import deepvelo.data_loader.data_loaders as module_data
 import deepvelo.model.loss as module_loss
 import deepvelo.model.metric as module_metric
 import deepvelo.model.model as module_arch
 from deepvelo.parse_config import ConfigParser
+
 
 # a hack to make constants, see https://stackoverflow.com/questions/3203286
 class MetaConstants(type):
@@ -41,6 +43,8 @@ class Constants(object, metaclass=MetaConstants):
                 "type": "pca, t",
                 "topC": 30,
                 "topG": 20,
+                "velocity_genes": False,
+                "use_scaled_u": False,
             },
         },
         "optimizer": {
@@ -54,6 +58,7 @@ class Constants(object, metaclass=MetaConstants):
                 "coeff_u": 1.0,
                 "coeff_s": 1.0,
                 "inner_batch_size": None,  # if None, will autoset the size.
+                "stop_pearson_after": 1000,  # by default, set this large to avoid stopping
             },
         },
         "constraint_loss": False,
@@ -68,12 +73,13 @@ class Constants(object, metaclass=MetaConstants):
             "monitor": "min mse",
             "early_stop": 1000,
             "tensorboard": True,
+            "grad_clip": False,
         },
     }
 
 
 def train(
-    adata,
+    adata: AnnData,
     configs: Mapping,
     verbose: bool = False,
     return_kinetic_rates: bool = True,
@@ -81,6 +87,8 @@ def train(
     **kwargs,
 ):
     batch_size, n_genes = adata.layers["Ms"].shape
+    if configs["data_loader"]["args"]["velocity_genes"]:
+        n_genes = int(np.sum(adata.var["velocity_genes"]))
     configs["arch"]["args"]["n_genes"] = n_genes
     configs["data_loader"]["args"]["batch_size"] = batch_size
     config = ConfigParser(configs)
@@ -161,10 +169,22 @@ def train(
 
     print("velo_mat shape:", velo_mat.shape)
     # add velocity
-    assert adata.layers["Ms"].shape == velo_mat.shape
-    adata.layers["velocity"] = velo_mat  # (cells, genes)
+    if configs["data_loader"]["args"]["velocity_genes"]:
+        # the predictions only contain the velocity genes
+        velocity_ = np.full(adata.shape, np.nan, dtype=velo_mat.dtype)
+        idx = adata.var["velocity_genes"].values
+        velocity_[:, idx] = velo_mat
+        if len(velo_mat_u) > 0:
+            velocity_u = np.full(adata.shape, np.nan, dtype=velo_mat.dtype)
+            velocity_u[:, idx] = velo_mat_u
+    else:
+        velocity_ = velo_mat
+        velocity_u = velo_mat_u
+
+    assert adata.layers["Ms"].shape == velocity_.shape
+    adata.layers["velocity"] = velocity_  # (cells, genes)
     if len(velo_mat_u) > 0:
-        adata.layers["velocity_unspliced"] = velo_mat_u
+        adata.layers["velocity_unspliced"] = velocity_u
 
     logg.hint(f"added 'velocity' (adata.layers)")
     logg.hint(f"added 'velocity_unspliced' (adata.layers)")
@@ -172,6 +192,10 @@ def train(
     if return_kinetic_rates:
         for k, v in kinetic_rates.items():
             if v is not None:
+                if configs["data_loader"]["args"]["velocity_genes"]:
+                    v_ = np.zeros(adata.shape, dtype=v.dtype)
+                    v_[:, adata.var["velocity_genes"].values] = v
+                    v = v_
                 adata.layers["cell_specific_" + k] = v
                 logg.hint(f"added 'cell_specific_{k}' (adata.layers)")
     return trainer

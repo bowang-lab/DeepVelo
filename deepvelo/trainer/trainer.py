@@ -48,6 +48,8 @@ class Trainer(BaseTrainer):
             "loss", *[m.__name__ for m in self.metric_ftns], writer=self.writer
         )
 
+        self.saved_candidate_ids = {}
+
     def _compute_core(self, batch_data):
         data_dict = batch_data
         x_u, x_s, target = data_dict["Ux_sz"], data_dict["Sx_sz"], data_dict["velo"]
@@ -105,10 +107,12 @@ class Trainer(BaseTrainer):
                 output = output * mask
                 target = target * mask
             self.optimizer.zero_grad()
-            loss = (
-                self.criterion(output, target)
-                if "mle" not in self.config["loss"]["type"]
-                else self.criterion(
+            if "mle" not in self.config["loss"]["type"]:
+                loss = self.criterion(output, target)
+            else:
+                loss_args_ = self.config["loss"]["args"]
+                do_pearson_ = epoch <= loss_args_["stop_pearson_after"]
+                loss, cand_ids = self.criterion(
                     output,
                     current_state=(
                         torch.cat(
@@ -125,10 +129,23 @@ class Trainer(BaseTrainer):
                     candidate_states=self.candidate_states,
                     spliced_counts=batch_data["Sx_sz"].to(self.device),
                     unspliced_counts=batch_data["Ux_sz"].to(self.device),
-                    **self.config["loss"]["args"],
+                    pearson_scale=loss_args_["pearson_scale"],
+                    coeff_u=loss_args_["coeff_u"],
+                    coeff_s=loss_args_["coeff_s"],
+                    inner_batch_size=loss_args_["inner_batch_size"],
+                    do_pearson=do_pearson_,
+                    candidate_ids=self.saved_candidate_ids[batch_idx]
+                    if not do_pearson_
+                    else None,
+                    return_candidates=True,
                 )
-            )
+                assert (
+                    not self.data_loader.shuffle
+                ), "will support shuffled loader in later release"
+                self.saved_candidate_ids[batch_idx] = cand_ids
             loss.backward()
+            if self.config["trainer"].get("grad_clip", True):
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
 
             if self.config["constraint_loss"]:
@@ -196,7 +213,7 @@ class Trainer(BaseTrainer):
             total = self.len_epoch
         return base.format(current, total, 100.0 * current / total)
 
-    def eval(self, eval_loader, return_kinetic_rates=False):
+    def eval(self, eval_loader, return_kinetic_rates=False, eval_confidence=True):
         """
         Evaluate the model on a given dataset, provided by eval_loader
 
@@ -208,6 +225,9 @@ class Trainer(BaseTrainer):
         velo_mat = []
         velo_mat_u = []
         kinetic_rates = {}
+        if eval_confidence:
+            confidence_mse = []
+            confidence_corr = []
         if (not eval_loader.shuffle) and eval_loader.is_large_batch:
             loader = eval_loader.dataset.large_batch(self.device)
         else:
@@ -228,6 +248,58 @@ class Trainer(BaseTrainer):
                         if k not in kinetic_rates:
                             kinetic_rates[k] = []
                         kinetic_rates[k].append(v.cpu().data)
+
+                # compute confidence scores
+                if eval_confidence:
+                    # self._confidence(
+                    from ..model.loss import mle_plus_direction
+
+                    conf_mse, conf_corr = mle_plus_direction(
+                        output,
+                        current_state=(
+                            torch.cat(
+                                [
+                                    batch_data["Sx_sz"],
+                                    batch_data["Ux_sz"],
+                                ],
+                                dim=1,
+                            ).to(self.device)
+                            if self.config["arch"]["args"]["pred_unspliced"]
+                            else batch_data["Sx_sz"].to(self.device)
+                        ),
+                        idx=batch_data["t+1 neighbor idx"].to(self.device),
+                        candidate_states=self.candidate_states,
+                        spliced_counts=batch_data["Sx_sz"].to(self.device),
+                        unspliced_counts=batch_data["Ux_sz"].to(self.device),
+                        pearson_scale=self.config["loss"]["args"]["pearson_scale"],
+                        coeff_u=self.config["loss"]["args"]["coeff_u"],
+                        coeff_s=self.config["loss"]["args"]["coeff_s"],
+                        inner_batch_size=self.config["loss"]["args"][
+                            "inner_batch_size"
+                        ],
+                        reduce=False,
+                    )
+                    confidence_mse.append(conf_mse.cpu().numpy())
+                    confidence_corr.append(conf_corr.cpu().numpy())
+
+            if eval_confidence:
+                confidence_mse = np.concatenate(confidence_mse, axis=0)
+                confidence_corr = np.concatenate(confidence_corr, axis=0)
+                print(f"confidence mse shape: {confidence_mse.shape}")
+                print(
+                    f"confidence mse stats: max {confidence_mse.max()}, "
+                    f"min {confidence_mse.min()}, mean {confidence_mse.mean()}, std {confidence_mse.std()}"
+                )
+                print(f"confidence corr shape: {confidence_corr.shape}")
+                print(
+                    f"confidence corr stats: max {confidence_corr.max()}, "
+                    f"min {confidence_corr.min()}, mean {confidence_corr.mean()}, std {confidence_corr.std()}"
+                )
+
+                self.confidence = {
+                    "mse": confidence_mse,
+                    "corr": confidence_corr,
+                }
 
             velo_mat = np.concatenate(velo_mat, axis=0)
             if return_kinetic_rates:

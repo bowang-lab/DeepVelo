@@ -119,6 +119,42 @@ def get_indices_from_csr(conn):
     return ixs
 
 
+def make_dense(X):
+    from scipy.sparse import issparse
+
+    XA = X.A if issparse(X) and X.ndim == 2 else X.A1 if issparse(X) else X
+    if XA.ndim == 2:
+        XA = XA[0] if XA.shape[0] == 1 else XA[:, 0] if XA.shape[1] == 1 else XA
+    return np.array(XA)
+
+
+def get_weight(x, y=None, perc=95):
+    from scipy.sparse import issparse
+
+    xy_norm = np.array(x.A if issparse(x) else x)
+    if y is not None:
+        if issparse(y):
+            y = y.A
+        xy_norm = xy_norm / np.clip(np.max(xy_norm, axis=0), 1e-3, None)
+        xy_norm += y / np.clip(np.max(y, axis=0), 1e-3, None)
+
+    if isinstance(perc, int):
+        weights = xy_norm >= np.percentile(xy_norm, perc, axis=0)
+    else:
+        lb, ub = np.percentile(xy_norm, perc, axis=0)
+        weights = (xy_norm <= lb) | (xy_norm >= ub)
+
+    return weights
+
+
+def R2(residual, total):
+    r2 = np.ones(residual.shape[1]) - np.sum(residual * residual, axis=0) / np.sum(
+        total * total, axis=0
+    )
+    r2[np.isnan(r2)] = 0
+    return r2
+
+
 class MetricTracker:
     def __init__(self, *keys, writer=None):
         self.writer = writer

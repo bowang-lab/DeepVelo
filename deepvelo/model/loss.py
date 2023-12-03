@@ -1,4 +1,5 @@
 from typing import Mapping, Optional, Tuple
+import warnings
 
 import torch
 import numpy as np
@@ -51,6 +52,8 @@ def _find_candidates(
     candidate_states: torch.Tensor,
     n_genes: int,
     inner_batch_size: int,
+    cand_tp1: Optional[torch.LongTensor] = None,
+    cand_tm1: Optional[torch.LongTensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Find the candidate states for each cell in the batch.
@@ -66,6 +69,12 @@ def _find_candidates(
         The states of potential future nearest neighbors, (all_cells, genes).
     n_genes (int):
         The number of spliced genes.
+    inner_batch_size (int):
+        The batch size for the inner loop.
+    cand_tp1, cand_tm1 (torch.LongTensor):
+        The indices of the candidate states. If this is not None, then will directly
+        use the candidate_ids to compute the continity loss, instead of using the
+        computed future neighbor index.
 
     Returns:
     delta_tp1 (torch.Tensor):
@@ -77,6 +86,55 @@ def _find_candidates(
     num_neighbors = idx.shape[1]
     delta_tp1 = []
     delta_tm1 = []
+
+    if cand_tp1 is not None and cand_tm1 is not None:
+        warnings.warn(
+            "Using pre-computed candidate states. Make sure this is expected "
+            "according to the config setting of `stop_pearson_after`.",
+            RuntimeWarning,
+        )
+        for i in range(0, output.shape[0], inner_batch_size):
+            batch_output = output[i : i + inner_batch_size]  # (inner_batch, genes)
+            batch_current_state = current_state[
+                i : i + inner_batch_size
+            ]  # (inner_batch, genes)
+            batch_idx = idx[i : i + inner_batch_size]  # (inner_batch, num_neighbors)
+            flatten_batch_idx = batch_idx.view(-1)  # (inner_batch * num_neighbors)
+            flatten_candidate_state = candidate_states[
+                flatten_batch_idx, :
+            ]  # (inner_batch * num_neighbors, genes)
+            candidate_state = flatten_candidate_state.view(
+                batch_idx.shape[0], num_neighbors, -1
+            )
+            delta = candidate_state - batch_current_state.unsqueeze(
+                1
+            )  # (inner_batch, num_neighbors, genes)
+
+            candidates_p1 = cand_tp1[i : i + inner_batch_size]
+            num_p1 = torch.sum(candidates_p1, dim=1)  # (inner_batch)
+            batch_delta_p1 = torch.sum(
+                delta * candidates_p1.unsqueeze(2).float(), dim=1
+            )
+            batch_delta_p1 = batch_delta_p1 / (
+                num_p1.unsqueeze(1).float() + 1e-9
+            )  # (inner_batch, genes)
+            delta_tp1.append(batch_delta_p1)
+
+            candidates_m1 = cand_tm1[i : i + inner_batch_size]
+            num_m1 = torch.sum(candidates_m1, dim=1)  # (inner_batch)
+            batch_delta_m1 = torch.sum(
+                delta * candidates_m1.unsqueeze(2).float(), dim=1
+            )
+            batch_delta_m1 = batch_delta_m1 / (
+                num_m1.unsqueeze(1).float() + 1e-9
+            )  # (inner_batch, genes)
+            delta_tm1.append(batch_delta_m1)
+        delta_tp1 = torch.cat(delta_tp1, dim=0)  # (batch_size, genes)
+        delta_tm1 = torch.cat(delta_tm1, dim=0)  # (batch_size, genes)
+        return delta_tp1, delta_tm1, cand_tp1, cand_tm1
+
+    cand_tp1 = []
+    cand_tm1 = []
     for i in range(0, output.shape[0], inner_batch_size):
         batch_output = output[i : i + inner_batch_size]  # (inner_batch, genes)
         batch_current_state = current_state[
@@ -100,6 +158,7 @@ def _find_candidates(
         )  # (inner_batch, num_neighbors)
 
         candidates_p1 = cos_sim > 0  # (inner_batch, num_neighbors)
+        cand_tp1.append(candidates_p1)
         num_p1 = torch.sum(candidates_p1, dim=1)  # (inner_batch)
         batch_delta_p1 = torch.sum(delta * candidates_p1.unsqueeze(2).float(), dim=1)
         batch_delta_p1 = batch_delta_p1 / (
@@ -108,6 +167,7 @@ def _find_candidates(
         delta_tp1.append(batch_delta_p1)
 
         candidates_m1 = cos_sim < 0  # (inner_batch, num_neighbors)
+        cand_tm1.append(candidates_m1)
         num_m1 = torch.sum(candidates_m1, dim=1)  # (inner_batch)
         batch_delta_m1 = torch.sum(delta * candidates_m1.unsqueeze(2).float(), dim=1)
         batch_delta_m1 = batch_delta_m1 / (
@@ -117,7 +177,9 @@ def _find_candidates(
 
     delta_tp1 = torch.cat(delta_tp1, dim=0)  # (batch_size, genes)
     delta_tm1 = torch.cat(delta_tm1, dim=0)  # (batch_size, genes)
-    return delta_tp1, delta_tm1
+    cand_tp1 = torch.cat(cand_tp1, dim=0)  # (batch_size, num_neighbors)
+    cand_tm1 = torch.cat(cand_tm1, dim=0)  # (batch_size, num_neighbors)
+    return delta_tp1, delta_tm1, cand_tp1, cand_tm1
 
 
 def integrate_mle(
@@ -127,6 +189,8 @@ def integrate_mle(
     candidate_states: torch.Tensor,
     n_spliced: int = None,
     inner_batch_size: int = None,
+    reduce: bool = True,
+    candidate_ids: dict = None,
     *args,
     **kwargs,
 ) -> torch.Tensor:
@@ -147,37 +211,51 @@ def integrate_mle(
         The number of spliced genes.
     inner_batch_size (int):
         The batch size for the inner loop.
+    reduce (bool):
+        Whether to reduce the loss to a scalar.
+    candidate_ids (dict):
+        The indices of the candidate states. If this is not None, then will directly
+        use the candidate_ids to compute the continity loss, instead of using the
+        computed future neighbor index.
 
-    Returns: (torch.Tensor)
+    Returns:
+        (torch.Tensor) of shape (1,) if reduce is True, otherwise (batch_size, genes).
     """
     batch_size, genes = current_state.shape
     if n_spliced is not None:
         genes = n_spliced
     if inner_batch_size is None:
-        inner_batch_size = int(max(5e8 / idx.shape[1] / current_state.shape[1], 1))
+        inner_batch_size = int(max(4e8 / idx.shape[1] / current_state.shape[1], 1))
     elif inner_batch_size > 0:
         inner_batch_size = int(inner_batch_size)
     else:
         raise ValueError("inner_batch_size must be a positive integer.")
     try:
         with torch.no_grad():
-            delta_tp1, delta_tm1 = _find_candidates(
+            delta_tp1, delta_tm1, cand_tp1, cand_tm1 = _find_candidates(
                 output,
                 current_state,
                 idx,
                 candidate_states,
                 n_genes=genes,
                 inner_batch_size=inner_batch_size,
+                cand_tp1=candidate_ids["tp1"] if candidate_ids else None,
+                cand_tm1=candidate_ids["tm1"] if candidate_ids else None,
             )  # (batch_size, genes)
     except RuntimeError as e:
         raise RuntimeError(
             f"The current inner batch size {inner_batch_size} is too large. "
             "Try reducing the 'inner_batch_size' in congigs."
         ) from e
+    if not reduce:
+        se_tp1 = torch.pow(output - delta_tp1, 2)
+        se_tm1 = torch.pow(output - delta_tm1, 2)
+        return se_tp1 + se_tm1, {"tp1": cand_tp1, "tm1": cand_tm1}
+
     loss_tp1 = torch.mean(torch.pow(output - delta_tp1, 2))
     loss_tm1 = torch.mean(torch.pow(output + delta_tm1, 2))
     loss = (loss_tp1 + loss_tm1) / 2 * np.sqrt(genes)
-    return loss
+    return loss, {"tp1": cand_tp1, "tm1": cand_tm1}
 
 
 def mle(
@@ -186,6 +264,7 @@ def mle(
     idx: torch.LongTensor,
     candidate_states: torch.Tensor,
     n_spliced: int = None,
+    reduce: bool = True,
     *args,
     **kwargs,
 ) -> torch.Tensor:
@@ -204,6 +283,10 @@ def mle(
         The indices future nearest neighbors, (batch_size, num_neighbors).
     candidate_states (torch.Tensor):
         The states of potential future nearest neighbors, (all_cells, genes).
+    n_spliced (int):
+        The number of spliced genes.
+    reduce (bool):
+        Whether to reduce the loss to a scalar or return the raw multi-dim tensor.
 
     Returns: (torch.Tensor)
     """
@@ -278,8 +361,8 @@ def pearson(
         y = y - torch.sum(y, dim=0) / (num_valid_data + 1e-9)
         y = y * mask  # make the invalid data to zero again to ignore
         x = x * mask
-        x = x / (torch.sqrt(torch.sum(torch.pow(x, 2), dim=0)) + 1e-9)
-        y = y / (torch.sqrt(torch.sum(torch.pow(y, 2), dim=0)) + 1e-9)
+        x = x / torch.sqrt(torch.sum(torch.pow(x, 2), dim=0) + 1e-9)
+        y = y / torch.sqrt(torch.sum(torch.pow(y, 2), dim=0) + 1e-9)
         return torch.sum(x * y, dim=0)  # (D,)
 
 
@@ -290,6 +373,7 @@ def direction_loss(
     velocity_u: Optional[torch.Tensor] = None,
     coeff_u: float = 1.0,
     coeff_s: float = 1.0,
+    reduce: bool = True,
 ) -> torch.Tensor:
     """
     The constraint for the direction of the velocity vectors. Large ratio of u/s
@@ -304,6 +388,12 @@ def direction_loss(
         The number of unspliced reads, (batch_size, genes).
     velocity_u (torch.Tensor):
         The predicted velocity vectors for unspliced reads, (batch_size, genes).
+    coeff_u (float):
+        The coefficient for the unspliced reads.
+    coeff_s (float):
+        The coefficient for the spliced reads.
+    reduce (bool):
+        Whether to reduce the loss to a scalar.
 
     Returns: (torch.Tensor), (1,)
     """
@@ -320,6 +410,10 @@ def direction_loss(
     # corr = coeff_u * pearson(velocity, unspliced_counts, mask) - coeff_s * pearson(
     #     velocity, spliced_counts, mask
     # )
+
+    if not reduce:
+        return corr / (coeff_u + coeff_s)  # range [-1, 1], shape (genes,)
+
     loss = coeff_u + coeff_s - torch.mean(corr)  # to maximize the correlation
     loss = loss / (coeff_u + coeff_s)
     # should not use correlation to u, since the alpha coefficient is unknown and
@@ -342,9 +436,37 @@ def mle_plus_direction(
     coeff_u: float = 1.0,
     coeff_s: float = 1.0,
     inner_batch_size: Optional[int] = None,
+    reduce: bool = True,
+    do_pearson: bool = True,
+    candidate_ids: Optional[dict] = None,
+    return_candidates: bool = False,
 ) -> torch.Tensor:
     """
     The combination of maximum likelihood estimation loss and direction loss.
+
+    Args:
+    output (torch.Tensor): The model output.
+    current_state (torch.Tensor):
+        The current cell state, (batch_size, genes).
+    idx (torch.LongTensor):
+        The indices future nearest neighbors, (batch_size, num_neighbors).
+    candidate_states (torch.Tensor):
+        The states of potential future nearest neighbors, (all_cells, genes).
+    spliced_counts (torch.Tensor): The tensor of spliced counts.
+    unspliced_counts (torch.Tensor): The tensor of unspliced counts.
+    pearson_scale (float): The scale for the pearson correlation.
+    coeff_u (float): The coefficient for the unspliced reads.
+    coeff_s (float): The coefficient for the spliced reads.
+    inner_batch_size (int):
+        The batch size for the inner loop.
+    reduce (bool):
+        Whether to reduce the loss to a scalar.
+    do_pearson (bool):
+        Whether to do pearson correlation.
+    candidate_ids (dict):
+        The indices of the candidate states. If this is not None, then will directly
+        use the candidate_ids to compute the continity loss, instead of using the
+        computed future neighbor index.
     """
     batch_size, genes = current_state.shape
     if output.shape[1] == spliced_counts.shape[1]:
@@ -359,21 +481,31 @@ def mle_plus_direction(
             "or 2 * num of genes when `pred_unspliced` is True."
         )
 
-    loss_mle = integrate_mle(
+    loss_mle, cand_ids = integrate_mle(
         output,
         current_state,
         idx,
         candidate_states,
         n_spliced=velocity.shape[1],
         inner_batch_size=inner_batch_size,
+        reduce=reduce,
+        candidate_ids=candidate_ids,
     )
-    loss_pearson = direction_loss(
-        velocity,
-        spliced_counts,
-        unspliced_counts,
-        coeff_u=coeff_u,
-        coeff_s=coeff_s,
-    )
+    if do_pearson:
+        loss_pearson = direction_loss(
+            velocity,
+            spliced_counts,
+            unspliced_counts,
+            coeff_u=coeff_u,
+            coeff_s=coeff_s,
+            reduce=reduce,
+        )
+    else:
+        loss_pearson = torch.zeros(1, device=output.device)
+
+    if not reduce:
+        # raw mse (batch_size, genes) and raw pearson corr (genes,)
+        return loss_mle, loss_pearson
 
     # scale the pearson to make it comparable with mle
     # TODO: should scale by * np.sqrt(genes)? and negative scale to batch size?
@@ -381,6 +513,10 @@ def mle_plus_direction(
         0.5, max(0.01, 1 - loss_pearson.item())
     )
     # print(f"mle: {loss_mle.item()}, direction_loss: {loss_pearson.item()}")
+
+    if return_candidates:
+        return loss_mle + _lambda * loss_pearson, cand_ids
+
     return loss_mle + _lambda * loss_pearson
 
 

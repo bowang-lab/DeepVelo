@@ -23,7 +23,8 @@ class VeloDataset(Dataset):
         type="average",
         topC=30,
         topG=20,
-        nn_smooth=False,
+        velocity_genes=False,
+        use_scaled_u=False,
     ):
         # check if data_source is a file path or inmemory data
         if isinstance(data_source, str):
@@ -36,6 +37,12 @@ class VeloDataset(Dataset):
             raise ValueError("data_source must be a file path or anndata object")
         self.Ux_sz = adata.layers["Mu"]
         self.Sx_sz = adata.layers["Ms"]
+        if velocity_genes:
+            self.Ux_sz = self.Ux_sz[:, adata.var["velocity_genes"]]
+            self.Sx_sz = self.Sx_sz[:, adata.var["velocity_genes"]]
+        if use_scaled_u:
+            scaling = np.std(self.Ux_sz, axis=0) / np.std(self.Sx_sz, axis=0)
+            self.Ux_sz = self.Ux_sz / scaling
         self.connectivities = adata.obsp["connectivities"]  # shape (cells, features)
 
         self.topG = topG
@@ -116,7 +123,6 @@ class VeloDataset(Dataset):
         return len(self.Ux_sz)  # 1720
 
     def __getitem__(self, i):
-
         data_dict = {
             "Ux_sz": self.Ux_sz[i],
             "Sx_sz": self.Sx_sz[i],
@@ -170,10 +176,18 @@ class VeloDataLoader(BaseDataLoader):
         type="average",
         topC=30,
         topG=16,
+        velocity_genes=False,
+        use_scaled_u=False,
     ):
         self.data_source = data_source
         self.dataset = VeloDataset(
-            data_source, train=training, type=type, topC=topC, topG=topG
+            data_source,
+            train=training,
+            type=type,
+            topC=topC,
+            topG=topG,
+            velocity_genes=velocity_genes,
+            use_scaled_u=use_scaled_u,
         )
         self.shuffle = shuffle
         self.is_large_batch = batch_size == len(self.dataset)

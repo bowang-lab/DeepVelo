@@ -1,0 +1,31 @@
+program: sweep.py
+method: random
+name: sweep_deepvelo
+project: deepvelo
+metric:
+  name: celltype_consistency
+  goal: maximize
+parameters:
+  lr:
+    disribution: uniform
+    min: 0.0001
+    max: 0.1
+  # optimizer:
+  # values: ["Adam", "SGD", "RMSProp"] - not sure if last spelled correctly
+  topC:
+    values: [5, 10, 20, 30, 40, 50]
+  topG:
+    values: [5, 10, 20, 30, 40, 50]
+  layers:
+    values:
+      [[32, 32], [64, 64], [128, 128], [256, 256], [512, 512], [64, 64, 64]]
+  pearson_scale:
+    distribution: int_uniform
+    min: 1
+    max: 100
+  n_hvg:
+    values: [500, 1000, 2000, 2500, 5000]
+  pp_neighbors:
+    values: [5, 10, 15, 20, 30, 40, 50]
+  pp_pcs:
+    values: [10, 20, 30, 40, 50]
