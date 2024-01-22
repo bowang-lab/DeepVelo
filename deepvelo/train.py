@@ -86,7 +86,7 @@ def train(
     callback: Callable = None,
     **kwargs,
 ):
-    batch_size, n_genes = adata.layers["Ms"].shape
+    batch_size, n_genes = adata.layers["Ms"].shape # To be changed after mini-batch training is implemented
     if configs["data_loader"]["args"]["velocity_genes"]:
         n_genes = int(np.sum(adata.var["velocity_genes"]))
     configs["arch"]["args"]["n_genes"] = n_genes
