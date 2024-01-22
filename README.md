@@ -39,15 +39,16 @@ This will install the exact versions in the provided [poetry.lock](poetry.lock) 
 poetry update
 ```
 
-## Usage
+## Minimal example 
 
-We provide a number of notebooks in the [exmaples](examples) folder to help you get started. DeepVelo fullly integrates with [scanpy](https://scanpy.readthedocs.io/en/latest/) and [scVelo](https://scvelo.readthedocs.io/). The basic usage is as follows:
+We provide a number of notebooks in the [examples](examples) folder to help you get started. DeepVelo fullly integrates with [scanpy](https://scanpy.readthedocs.io/en/latest/) and [scVelo](https://scvelo.readthedocs.io/). The basic usage is as follows:
 
 ```python
+import anndata as ann
 import deepvelo as dv
 import scvelo as scv
 
-adata = ... # load your data in AnnData format
+adata = ann.read_h5ad("..") # load your data in AnnData here - modify the path accordingly
 
 # preprocess the data
 scv.pp.filter_and_normalize(adata, min_shared_counts=20, n_top_genes=2000)
@@ -56,6 +57,16 @@ scv.pp.moments(adata, n_neighbors=30, n_pcs=30)
 # run DeepVelo using the default configs
 trainer = dv.train(adata, dv.Constants.default_configs)
 # this will train the model and predict the velocity vectore. The result is stored in adata.layers['velocity']. You can use trainer.model to access the model.
+
+# Plot the velocity results 
+scv.tl.velocity_graph(adata, n_jobs=4)
+scv.pl.velocity_embedding_stream(
+    adata,
+    basis="umap",
+    color="clusters",
+    legend_fontsize=9,
+    dpi=150          
+)
 ```
 
 ### Fitting large number of cells
