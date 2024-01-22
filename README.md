@@ -3,7 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/deepvelo.svg)](https://badge.fury.io/py/deepvelo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-This is the official implementation of the [DeepVelo](https://www.biorxiv.org/content/10.1101/2022.04.03.486877) method.
+This is the official implementation of the [DeepVelo](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-023-03148-9) method.
 DeepVelo employs cell-specific kinetic rates and provides more accurate RNA velocity estimates for complex differentiation and lineage decision events in heterogeneous scRNA-seq data. Please check out the paper for more details.
 
 ![alt text](https://user-images.githubusercontent.com/11674033/171066682-a899377f-fae1-452a-8b67-8bc8c244b641.png)
@@ -41,7 +41,9 @@ poetry update
 
 ## Minimal example 
 
-We provide a number of notebooks in the [examples](examples) folder to help you get started. DeepVelo fullly integrates with [scanpy](https://scanpy.readthedocs.io/en/latest/) and [scVelo](https://scvelo.readthedocs.io/). The basic usage is as follows:
+We provide a number of notebooks in the [examples](examples) folder to help you get started. This folder contains analyses from the paper, as well as a minimal [python notebook](examples/minimal_example.ipynb).
+
+DeepVelo fully integrates with [scanpy](https://scanpy.readthedocs.io/en/latest/) and [scVelo](https://scvelo.readthedocs.io/). The basic usage is as follows:
 
 ```python
 import anndata as ann
