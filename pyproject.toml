@@ -22,6 +22,7 @@ tqdm = ">=4.62.3"
 ipywidgets = ">=7.6.5"
 igraph = ">=0.9.10"
 hnswlib = ">=0.6.2"
+chardet = ">5.0.0"
 
 [tool.poetry.dev-dependencies]
 ipykernel = ">=6.7.0"
