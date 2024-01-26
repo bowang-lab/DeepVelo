@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import dgl
 import hnswlib
-from dgl.contrib.sampling import NeighborSampler
+from dgl.dataloading import NeighborSampler
 from torch.utils.data import Dataset
 from sklearn.metrics import pairwise_distances
 from sklearn.decomposition import PCA
