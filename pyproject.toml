@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deepvelo"
-version = "0.2.5-rc.1"
+version = "0.2.8"
 description = "Deep Velocity"
 authors = ["subercui <subercui@gmail.com>"]
 readme = "README.md"
@@ -9,33 +9,28 @@ homepage = "https://github.com/bowang-lab/DeepVelo"
 repository = "https://github.com/bowang-lab/DeepVelo"
 
 [tool.poetry.dependencies]
-python = ">=3.7.1,<4.0"
+python = ">=3.7.1,<3.10"
 scvelo = "^0.2.4"
-torch = "^1.2"
-umap-learn = "^0.5.2"
+torch = ">=1.2,<1.13"
+umap-learn = ">=0.5.2,<=0.5.4"
 seaborn = "^0.11.2"
 adjustText = "^0.7.3"
 scanpy = "^1.8.2"
 numpy = "^1.21.1"
 tqdm = "^4.62.3"
-ipywidgets = "^7.6.5"
-dgl = { version = ">=0.4,!=0.8.0.post1", markers="extra!='gpu'" }
-dgl-cu101 = { version = ">=0.4,!=0.8.0.post1", optional = true }
+matplotlib = ">=3.3,<3.6"
+dgl = { version = ">=0.4,!=0.8.0.post1,<0.9", markers="extra!='gpu'" }
+dgl-cu102 = { version = ">=0.4,!=0.8.0.post1,<0.9", optional = true }
 igraph = "^0.9.10"
 hnswlib = "^0.6.2"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "^6.7.0"
-ipdb = "^0.13.9"
-cellrank = "1.5.0"
-mpi4py = "^3.1.3"
-petsc = "^3.17.0"
-petsc4py = "^3.17.0"
-slepc = "^3.17.1"
-slepc4py = "^3.17.1"
+cellrank = { version = "1.5.0", optional = true }
 
 [tool.poetry.extras]
-gpu = ["dgl-cu101"]
+gpu = ["dgl-cu102"]
+cellrank = ["cellrank>=1.5.0"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

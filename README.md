@@ -21,7 +21,7 @@ The `dgl` cpu version is installed by default. For GPU acceleration, please inst
 ```bash
 pip uninstall dgl # remove the cpu version
 # replace cu101 with your desired CUDA version and run the following
-pip install "dgl-cu101>=0.4.3,!=0.8.0.post1"
+pip install "dgl-cu101>=0.4.3,<0.7"
 
 ```
 
