@@ -10,6 +10,8 @@ DeepVelo employs cell-specific kinetic rates and provides more accurate RNA velo
 
 ## Installation
 
+Please note that using the pip version is currently recommended. The currently supported python versions are `3.7`, `3.8`, and `3.9`. 
+
 ```bash
 pip install deepvelo
 ```
