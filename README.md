@@ -3,12 +3,14 @@
 [![PyPI version](https://badge.fury.io/py/deepvelo.svg)](https://badge.fury.io/py/deepvelo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-This is the official implementation of the [DeepVelo](https://www.biorxiv.org/content/10.1101/2022.04.03.486877) method.
+This is the official implementation of the [DeepVelo](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-023-03148-9) method.
 DeepVelo employs cell-specific kinetic rates and provides more accurate RNA velocity estimates for complex differentiation and lineage decision events in heterogeneous scRNA-seq data. Please check out the paper for more details.
 
 ![alt text](https://user-images.githubusercontent.com/11674033/171066682-a899377f-fae1-452a-8b67-8bc8c244b641.png)
 
 ## Installation
+
+Please note that using the pip version is currently recommended. The currently supported python versions are `3.7`, `3.8`, and `3.9`. 
 
 ```bash
 pip install deepvelo
@@ -39,15 +41,18 @@ This will install the exact versions in the provided [poetry.lock](poetry.lock) 
 poetry update
 ```
 
-## Usage
+## Minimal example 
 
-We provide a number of notebooks in the [exmaples](examples) folder to help you get started. DeepVelo fullly integrates with [scanpy](https://scanpy.readthedocs.io/en/latest/) and [scVelo](https://scvelo.readthedocs.io/). The basic usage is as follows:
+We provide a number of notebooks in the [examples](examples) folder to help you get started. This folder contains analyses from the paper, as well as a minimal [python notebook](examples/minimal_example.ipynb).
+
+DeepVelo fully integrates with [scanpy](https://scanpy.readthedocs.io/en/latest/) and [scVelo](https://scvelo.readthedocs.io/). The basic usage is as follows:
 
 ```python
+import anndata as ann
 import deepvelo as dv
 import scvelo as scv
 
-adata = ... # load your data in AnnData format
+adata = ann.read_h5ad("..") # load your data in AnnData here - modify the path accordingly
 
 # preprocess the data
 scv.pp.filter_and_normalize(adata, min_shared_counts=20, n_top_genes=2000)
@@ -56,6 +61,16 @@ scv.pp.moments(adata, n_neighbors=30, n_pcs=30)
 # run DeepVelo using the default configs
 trainer = dv.train(adata, dv.Constants.default_configs)
 # this will train the model and predict the velocity vectore. The result is stored in adata.layers['velocity']. You can use trainer.model to access the model.
+
+# Plot the velocity results 
+scv.tl.velocity_graph(adata, n_jobs=4)
+scv.pl.velocity_embedding_stream(
+    adata,
+    basis="umap",
+    color="clusters",
+    legend_fontsize=9,
+    dpi=150          
+)
 ```
 
 ### Fitting large number of cells
